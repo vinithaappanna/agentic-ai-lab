@@ -1,5 +1,9 @@
 # Agentic AI Lab
 
+![tests](https://github.com/vinithaappanna/agentic-ai-lab/actions/workflows/tests.yml/badge.svg)
+
+![How the agent loop works](docs/agent-loop.png)
+
 A tiny, dependency-free toolkit for building tool-using AI agents in Python.
 The whole core is three small modules you can read in one sitting, with a test
 suite that runs offline against a scripted mock model.
