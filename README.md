@@ -21,11 +21,29 @@ Agent frameworks hide the interesting parts. This lab keeps them visible:
   plus `MockLLM`, a scripted stand-in that makes agent behavior fully testable
   without API keys or network.
 
+## Approval gate for sensitive tools
+
+Tools that change the world (flag a claim, issue a refund) can be registered
+with `sensitive=True`. A sensitive call only runs when the agent's `approver`
+- a callable taking `(tool_name, arguments)` - allows that exact call:
+
+```python
+def reviewer(name, args):
+    ...  # ask a human, or apply a policy rule; return True to allow
+
+agent = Agent(llm, tools, approver=reviewer)
+```
+
+The gate **fails closed**: with no approver, or an approver that errors, the
+call is denied and the model gets an observation telling it to move on.
+Denied calls show up in `result.steps` with `blocked=True`, so every run is
+auditable. The claims-triage example shows the pattern end to end.
+
 ## Quickstart
 
 ```bash
 python examples/calculator_agent.py   # watch a scripted agent solve 6 * 7 + 0
-python examples/claims_triage_agent.py  # synthetic healthcare claims triage
+python examples/claims_triage_agent.py  # synthetic claims triage + approval gate
 python examples/expense_audit_agent.py  # synthetic expense auditing (finance)
 python -m pytest                      # run the offline test suite
 ```

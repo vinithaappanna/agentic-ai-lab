@@ -51,8 +51,11 @@ def build_registry(claims=None, policies=None) -> ToolRegistry:
         desc = COVERED_CODES.get(code)
         return {"covered": desc is not None, "description": desc or "unknown code"}
 
+    # Flagging a claim changes its state, so it is marked sensitive: the
+    # agent may only call it when the approver (a human, or a rule standing
+    # in for one here) allows that exact call.
     @tools.register("flag a claim for manual review",
-                    {"claim_id": "string", "reason": "string"})
+                    {"claim_id": "string", "reason": "string"}, sensitive=True)
     def flag_review(claim_id, reason):
         if claim_id not in claims:
             return {"error": f"no such claim {claim_id}"}
@@ -60,6 +63,24 @@ def build_registry(claims=None, policies=None) -> ToolRegistry:
         return {"claim_id": claim_id, "status": "flagged", "reason": reason}
 
     return tools
+
+
+def reviewer_approver(name: str, args: dict) -> bool:
+    """Rule-based stand-in for a human reviewer.
+
+    Auto-approves a flag only when the cited reason is a concrete policy
+    breach (amount over the policy's annual max). Anything fuzzier is denied,
+    which in a real deployment would route to a person instead. Rules here
+    are illustrative, not adjudication logic.
+    """
+    claim = CLAIMS.get(args.get("claim_id", ""))
+    if not claim:
+        return False
+    policy = POLICIES.get(claim["policy_id"], {})
+    over_max = claim["amount"] > policy.get("annual_max", 0)
+    decision = over_max and "exceeds annual max" in args.get("reason", "")
+    print(f"[approver] {name}{args} -> {'APPROVED' if decision else 'DENIED'}")
+    return decision
 
 
 def scripted_llm() -> MockLLM:
@@ -80,7 +101,9 @@ def scripted_llm() -> MockLLM:
 
 if __name__ == "__main__":
     registry = build_registry()
-    result = Agent(scripted_llm(), registry).run("Triage claim CLM-3")
+    agent = Agent(scripted_llm(), registry, approver=reviewer_approver)
+    result = agent.run("Triage claim CLM-3")
     for i, step in enumerate(result.steps, 1):
-        print(f"step {i}: {step.action}{step.action_input} -> {step.observation}")
+        mark = " [BLOCKED]" if step.blocked else ""
+        print(f"step {i}: {step.action}{step.action_input} -> {step.observation}{mark}")
     print("answer:", result.answer)

@@ -4,7 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "examples"))
 
-from claims_triage_agent import build_registry, scripted_llm
+from claims_triage_agent import build_registry, reviewer_approver, scripted_llm
 
 from agentlab.agent import Agent
 
@@ -35,10 +35,22 @@ def test_full_triage_run_flags_outlier_claim():
     claims = {"CLM-3": {"policy_id": "POL-100", "amount": 99999,
                         "code": "99213", "status": "submitted"}}
     reg = build_registry(claims=claims)
-    result = Agent(scripted_llm(), reg).run("Triage claim CLM-3")
+    result = Agent(scripted_llm(), reg, approver=reviewer_approver).run("Triage claim CLM-3")
     assert result.stopped_reason == "final"
     assert "flagged" in result.answer
     assert claims["CLM-3"]["status"] == "flagged"
-    # the agent used all four tools in order
+    # the agent used all four tools in order, and the sensitive one was approved
     actions = [s.action for s in result.steps]
     assert actions == ["get_claim", "check_policy", "check_coverage", "flag_review"]
+    assert result.steps[-1].blocked is False
+
+
+def test_triage_run_without_approver_cannot_flag():
+    """Fail closed: with nobody to approve it, flag_review never runs."""
+    claims = {"CLM-3": {"policy_id": "POL-100", "amount": 99999,
+                        "code": "99213", "status": "submitted"}}
+    reg = build_registry(claims=claims)
+    result = Agent(scripted_llm(), reg).run("Triage claim CLM-3")  # no approver
+    assert claims["CLM-3"]["status"] == "submitted"  # unchanged
+    assert result.steps[-1].blocked is True
+    assert "approval was denied" in result.steps[-1].observation

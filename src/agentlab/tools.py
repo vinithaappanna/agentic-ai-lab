@@ -11,19 +11,27 @@ class Tool:
     description: str
     parameters: dict  # {param_name: "type-name"}; all listed params are required
     func: Callable
+    sensitive: bool = False  # True = side-effecting action a human should approve
 
 
 @dataclass
 class ToolRegistry:
     _tools: dict = field(default_factory=dict)
 
-    def register(self, description: str, parameters: dict | None = None, name: str | None = None):
-        """Decorator: @registry.register("what it does", {"x": "number"})"""
+    def register(self, description: str, parameters: dict | None = None,
+                 name: str | None = None, sensitive: bool = False):
+        """Decorator: @registry.register("what it does", {"x": "number"})
+
+        Mark a tool sensitive=True when calling it has consequences a person
+        should sign off on (flagging a claim, issuing a refund). Sensitive
+        tools only run when the Agent's approver allows the call.
+        """
         def wrap(func: Callable) -> Callable:
             tool_name = name or func.__name__
             if tool_name in self._tools:
                 raise ValueError(f"tool {tool_name!r} is already registered")
-            self._tools[tool_name] = Tool(tool_name, description, parameters or {}, func)
+            self._tools[tool_name] = Tool(tool_name, description, parameters or {},
+                                          func, sensitive=sensitive)
             return func
         return wrap
 

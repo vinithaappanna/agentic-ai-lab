@@ -13,8 +13,15 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from typing import Callable
 
 from .tools import ToolRegistry
+
+# An approver decides whether a sensitive tool call may run. It receives the
+# tool name and the exact arguments the model proposed, and returns True to
+# allow the call. In production this is where a human reviews the action;
+# in tests and demos it can be a simple rule.
+Approver = Callable[[str, dict], bool]
 
 SYSTEM_PROMPT = """You are an agent that solves tasks step by step using tools.
 
@@ -33,6 +40,7 @@ class Step:
     action: str
     action_input: dict
     observation: str
+    blocked: bool = False  # True when approval for a sensitive tool was denied
 
 
 @dataclass
@@ -63,12 +71,31 @@ def extract_json(text: str) -> dict | None:
 
 
 class Agent:
-    def __init__(self, llm, tools: ToolRegistry, max_steps: int = 8):
+    def __init__(self, llm, tools: ToolRegistry, max_steps: int = 8,
+                 approver: Approver | None = None):
         if max_steps < 1:
             raise ValueError("max_steps must be at least 1")
         self.llm = llm
         self.tools = tools
         self.max_steps = max_steps
+        # Human-in-the-loop hook for tools registered with sensitive=True.
+        # Fail closed: with no approver, sensitive tools never run.
+        self.approver = approver
+
+    def _approved(self, name: str, arguments: dict) -> bool:
+        """Decide whether a sensitive tool call may execute.
+
+        Fails closed: no approver, or an approver that errors, means denied -
+        a sensitive action must never run because the safety check broke.
+        """
+        if self.approver is None:
+            return False
+        if not isinstance(arguments, dict):
+            return False
+        try:
+            return bool(self.approver(name, arguments))
+        except Exception:
+            return False
 
     def run(self, task: str) -> AgentResult:
         messages = [{"role": "user", "content": task}]
@@ -88,12 +115,22 @@ class Agent:
                                    stopped_reason="final")
             action = str(parsed.get("action", ""))
             action_input = parsed.get("action_input", {})
-            observation = self.tools.call(action, action_input)
+            tool = self.tools.get(action)
+            blocked = False
+            if tool is not None and tool.sensitive and not self._approved(action, action_input):
+                blocked = True
+                observation = (
+                    f"error: tool {action!r} is sensitive and approval was denied; "
+                    "do not retry the same call - continue without it or finish"
+                )
+            else:
+                observation = self.tools.call(action, action_input)
             steps.append(Step(
                 thought=str(parsed.get("thought", "")),
                 action=action,
                 action_input=action_input if isinstance(action_input, dict) else {},
                 observation=observation,
+                blocked=blocked,
             ))
             messages.append({"role": "user", "content": f"observation: {observation}"})
 
