@@ -39,6 +39,19 @@ call is denied and the model gets an observation telling it to move on.
 Denied calls show up in `result.steps` with `blocked=True`, so every run is
 auditable. The claims-triage example shows the pattern end to end.
 
+## Audit trail
+
+`agentlab.trace` exports any run as JSONL - one line per step (thought,
+action, arguments, observation, blocked flag) plus a summary line:
+
+```python
+from agentlab import trace
+trace.write_jsonl(result, "traces/run.jsonl")
+```
+
+Regulated workflows (claims, refunds) get a durable record of what the
+agent did and what the approver allowed or denied.
+
 ## Quickstart
 
 ```bash
