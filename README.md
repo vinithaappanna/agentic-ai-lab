@@ -26,6 +26,7 @@ Agent frameworks hide the interesting parts. This lab keeps them visible:
 ```bash
 python examples/calculator_agent.py   # watch a scripted agent solve 6 * 7 + 0
 python examples/claims_triage_agent.py  # synthetic healthcare claims triage
+python examples/expense_audit_agent.py  # synthetic expense auditing (finance)
 python -m pytest                      # run the offline test suite
 ```
 
