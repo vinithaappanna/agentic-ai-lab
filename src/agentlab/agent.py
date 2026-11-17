@@ -47,7 +47,7 @@ class Step:
 class AgentResult:
     answer: str | None
     steps: list[Step] = field(default_factory=list)
-    stopped_reason: str = "final"  # "final" or "max_steps"
+    stopped_reason: str = "final"  # "final", "max_steps" or "loop_detected"
 
 
 def extract_json(text: str) -> dict | None:
@@ -72,9 +72,14 @@ def extract_json(text: str) -> dict | None:
 
 class Agent:
     def __init__(self, llm, tools: ToolRegistry, max_steps: int = 8,
-                 approver: Approver | None = None):
+                 approver: Approver | None = None, max_repeats: int = 3):
         if max_steps < 1:
             raise ValueError("max_steps must be at least 1")
+        if max_repeats < 2:
+            raise ValueError("max_repeats must be at least 2")
+        # Stop when the model issues the identical call this many times in a
+        # row: it is stuck, and more steps only burn budget (or repeat a side effect).
+        self.max_repeats = max_repeats
         self.llm = llm
         self.tools = tools
         self.max_steps = max_steps
@@ -102,6 +107,8 @@ class Agent:
         steps: list[Step] = []
         system = SYSTEM_PROMPT.format(tools=self.tools.describe() or "(no tools)")
 
+        repeats = 0
+        last_call = None
         for _ in range(self.max_steps):
             raw = self.llm.complete(system, messages)
             messages.append({"role": "assistant", "content": raw})
@@ -133,5 +140,10 @@ class Agent:
                 blocked=blocked,
             ))
             messages.append({"role": "user", "content": f"observation: {observation}"})
+            call = (action, json.dumps(action_input, sort_keys=True, default=str))
+            repeats = repeats + 1 if call == last_call else 1
+            last_call = call
+            if repeats >= self.max_repeats:
+                return AgentResult(answer=None, steps=steps, stopped_reason="loop_detected")
 
         return AgentResult(answer=None, steps=steps, stopped_reason="max_steps")

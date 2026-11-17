@@ -55,8 +55,9 @@ def test_agent_survives_unknown_tool():
 
 def test_agent_stops_at_max_steps():
     llm = MockLLM([
-        '{"thought": "loop", "action": "add", "action_input": {"a": 1, "b": 1}}',
-    ] * 10)
+        f'{{"thought": "loop", "action": "add", "action_input": {{"a": {i}, "b": 1}}}}'
+        for i in range(10)  # varied args so the loop guard does not trip first
+    ])
     result = Agent(llm, make_registry(), max_steps=3).run("keep adding")
     assert result.stopped_reason == "max_steps"
     assert result.answer is None

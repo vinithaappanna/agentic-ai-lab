@@ -39,6 +39,12 @@ call is denied and the model gets an observation telling it to move on.
 Denied calls show up in `result.steps` with `blocked=True`, so every run is
 auditable. The claims-triage example shows the pattern end to end.
 
+## Loop guard
+
+If the model issues the identical tool call `max_repeats` times in a row
+(default 3), the run stops with `stopped_reason="loop_detected"` instead of
+burning steps or repeating a side effect.
+
 ## Audit trail
 
 `agentlab.trace` exports any run as JSONL - one line per step (thought,
