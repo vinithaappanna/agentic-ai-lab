@@ -39,6 +39,12 @@ call is denied and the model gets an observation telling it to move on.
 Denied calls show up in `result.steps` with `blocked=True`, so every run is
 auditable. The claims-triage example shows the pattern end to end.
 
+## Retrieval as a tool
+
+`agentlab.retrieval.KeywordRetriever` is a dependency-free retriever; wrap its
+`search` in a tool and the agent can ground answers in documents. See
+`examples/benefits_rag_agent.py` (synthetic plan FAQ, illustrative text only).
+
 ## Per-run call budgets
 
 `@tools.register(..., max_calls=2)` caps how often a tool can run in one agent
@@ -71,6 +77,7 @@ agent did and what the approver allowed or denied.
 python examples/calculator_agent.py   # watch a scripted agent solve 6 * 7 + 0
 python examples/claims_triage_agent.py  # synthetic claims triage + approval gate
 python examples/expense_audit_agent.py  # synthetic expense auditing (finance)
+python examples/benefits_rag_agent.py  # retrieval-as-a-tool, synthetic benefits FAQ
 python -m pytest                      # run the offline test suite
 ```
 
@@ -93,4 +100,3 @@ model-agnostic.
 
 - Planner-executor pattern on top of the same loop
 - Retry/backoff and structured-output helpers in the real-model adapter
-- A small RAG example (retriever as just another tool)
