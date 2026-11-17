@@ -107,6 +107,7 @@ class Agent:
         steps: list[Step] = []
         system = SYSTEM_PROMPT.format(tools=self.tools.describe() or "(no tools)")
 
+        self.tools.reset_counts()
         repeats = 0
         last_call = None
         for _ in range(self.max_steps):

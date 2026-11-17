@@ -12,14 +12,17 @@ class Tool:
     parameters: dict  # {param_name: "type-name"}; all listed params are required
     func: Callable
     sensitive: bool = False  # True = side-effecting action a human should approve
+    max_calls: int | None = None  # per-run budget; None = unlimited
 
 
 @dataclass
 class ToolRegistry:
     _tools: dict = field(default_factory=dict)
+    _counts: dict = field(default_factory=dict)
 
     def register(self, description: str, parameters: dict | None = None,
-                 name: str | None = None, sensitive: bool = False):
+                 name: str | None = None, sensitive: bool = False,
+                 max_calls: int | None = None):
         """Decorator: @registry.register("what it does", {"x": "number"})
 
         Mark a tool sensitive=True when calling it has consequences a person
@@ -31,9 +34,13 @@ class ToolRegistry:
             if tool_name in self._tools:
                 raise ValueError(f"tool {tool_name!r} is already registered")
             self._tools[tool_name] = Tool(tool_name, description, parameters or {},
-                                          func, sensitive=sensitive)
+                                          func, sensitive=sensitive, max_calls=max_calls)
             return func
         return wrap
+
+    def reset_counts(self) -> None:
+        """Start a new run: clear per-tool call counters (see max_calls)."""
+        self._counts.clear()
 
     def get(self, name: str) -> Tool | None:
         return self._tools.get(name)
@@ -65,6 +72,10 @@ class ToolRegistry:
             return f"error: missing arguments {sorted(missing)}"
         if extra:
             return f"error: unexpected arguments {sorted(extra)}"
+        if tool.max_calls is not None and self._counts.get(name, 0) >= tool.max_calls:
+            return (f"error: tool {name!r} budget of {tool.max_calls} call(s) per run "
+                    "is used up; continue without it or finish")
+        self._counts[name] = self._counts.get(name, 0) + 1
         try:
             return str(tool.func(**arguments))
         except Exception as exc:  # the model needs to see tool failures too

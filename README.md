@@ -39,6 +39,13 @@ call is denied and the model gets an observation telling it to move on.
 Denied calls show up in `result.steps` with `blocked=True`, so every run is
 auditable. The claims-triage example shows the pattern end to end.
 
+## Per-run call budgets
+
+`@tools.register(..., max_calls=2)` caps how often a tool can run in one agent
+run (counters reset at the start of each `Agent.run`). Over-budget calls return
+an error observation instead of executing - a cheap safety net for refunds,
+flags or paid API calls. Invalid calls do not spend budget.
+
 ## Loop guard
 
 If the model issues the identical tool call `max_repeats` times in a row
