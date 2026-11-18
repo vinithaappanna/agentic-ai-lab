@@ -39,6 +39,19 @@ call is denied and the model gets an observation telling it to move on.
 Denied calls show up in `result.steps` with `blocked=True`, so every run is
 auditable. The claims-triage example shows the pattern end to end.
 
+## Declarative approval policies
+
+`agentlab.policy` builds approvers from small rules instead of hand-written
+functions: `allow_tools`, `max_amount("amount", 500)`, `require_text`, combined
+with `all_of` / `any_of`, and `audited(rule, log)` to record every decision.
+Rules fail closed (missing or non-numeric values, or a rule that raises, deny).
+Illustrative building blocks, not compliance logic.
+
+```python
+policy = all_of(allow_tools("refund"), max_amount("amount", 100))
+agent = Agent(llm, tools, approver=policy)
+```
+
 ## Retrieval as a tool
 
 `agentlab.retrieval.KeywordRetriever` is a dependency-free retriever; wrap its
