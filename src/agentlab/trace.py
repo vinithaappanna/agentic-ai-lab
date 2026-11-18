@@ -11,11 +11,15 @@ import json
 from pathlib import Path
 
 from .agent import AgentResult
+from .redact import redact_value
 
 
-def to_dict(result: AgentResult) -> dict:
-    """A run as a plain dict: JSON-safe, ready to serialize or assert on."""
-    return {
+def to_dict(result: AgentResult, redact: bool = False) -> dict:
+    """A run as a plain dict: JSON-safe, ready to serialize or assert on.
+
+    redact=True masks SSNs, emails and phone numbers in every text field.
+    """
+    payload = {
         "answer": result.answer,
         "stopped_reason": result.stopped_reason,
         "steps": [
@@ -29,15 +33,17 @@ def to_dict(result: AgentResult) -> dict:
             for step in result.steps
         ],
     }
+    return redact_value(payload) if redact else payload
 
 
-def to_jsonl(result: AgentResult) -> str:
+def to_jsonl(result: AgentResult, redact: bool = False) -> str:
     """One JSON object per step, then a summary line."""
     lines = [json.dumps({"type": "step", "index": i, **step})
-             for i, step in enumerate(to_dict(result)["steps"])]
+             for i, step in enumerate(to_dict(result, redact)["steps"])]
+    answer = redact_value(result.answer) if redact else result.answer
     lines.append(json.dumps({
         "type": "summary",
-        "answer": result.answer,
+        "answer": answer,
         "stopped_reason": result.stopped_reason,
         "step_count": len(result.steps),
         "blocked_count": sum(1 for s in result.steps if s.blocked),
@@ -45,9 +51,9 @@ def to_jsonl(result: AgentResult) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write_jsonl(result: AgentResult, path) -> Path:
+def write_jsonl(result: AgentResult, path, redact: bool = False) -> Path:
     """Write the trace to `path`; returns the path."""
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(to_jsonl(result), encoding="utf-8")
+    path.write_text(to_jsonl(result, redact), encoding="utf-8")
     return path

@@ -1,0 +1,54 @@
+import json
+
+from agentlab.agent import Agent
+from agentlab.llm import MockLLM
+from agentlab.redact import redact_text, redact_value
+from agentlab.tools import ToolRegistry
+from agentlab.trace import to_dict, to_jsonl, write_jsonl
+
+
+def test_redacts_ssn_email_phone():
+    out = redact_text("SSN 123-45-6789, mail a.b+c@ex.co.uk, call (555) 123-4567 or 555-123-4567")
+    assert "123-45-6789" not in out and "ex.co.uk" not in out and "4567" not in out
+    assert out.count("[PHONE]") == 2 and "[SSN]" in out and "[EMAIL]" in out
+
+
+def test_leaves_ordinary_numbers_alone():
+    text = "claim CLM-61117 paid 1500.25 on 2026-11-18, code 99213"
+    assert redact_text(text) == text
+
+
+def test_extra_patterns_and_nested_values():
+    out = redact_value({"a": ["MBR-0042", {"b": "ok", "n": 5}]}, {"MEMBER": r"MBR-\d+"})
+    assert out == {"a": ["[MEMBER]", {"b": "ok", "n": 5}]}
+
+
+def run():
+    reg = ToolRegistry()
+
+    @reg.register("lookup", {"q": "string"})
+    def lookup(q):
+        return "member jane@example.com, SSN 123-45-6789"
+
+    llm = MockLLM([
+        '{"thought": "email jane@example.com", "action": "lookup", "action_input": {"q": "555-123-4567"}}',
+        '{"thought": "d", "final": "reached jane@example.com"}',
+    ])
+    return Agent(llm, reg).run("go")
+
+
+def test_trace_redaction_is_opt_in_and_covers_all_fields():
+    result = run()
+    assert "jane@example.com" in to_jsonl(result)  # default unchanged
+    red = to_jsonl(result, redact=True)
+    for secret in ("jane@example.com", "123-45-6789", "555-123-4567"):
+        assert secret not in red
+    rows = [json.loads(l) for l in red.splitlines()]
+    assert rows[-1]["answer"] == "reached [EMAIL]"
+    assert to_dict(result, redact=True)["steps"][0]["action_input"] == {"q": "[PHONE]"}
+    assert result.steps[0].observation.startswith("member jane@")  # original untouched
+
+
+def test_write_jsonl_redact(tmp_path):
+    out = write_jsonl(run(), tmp_path / "t.jsonl", redact=True)
+    assert "jane@example.com" not in out.read_text()

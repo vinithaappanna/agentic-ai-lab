@@ -75,6 +75,9 @@ from agentlab import trace
 trace.write_jsonl(result, "traces/run.jsonl")
 ```
 
+Pass `redact=True` to mask SSNs, emails and phone numbers (`agentlab.redact`,
+pattern-based safety net, not a compliance guarantee; use synthetic data only).
+
 Regulated workflows (claims, refunds) get a durable record of what the
 agent did and what the approver allowed or denied.
 
