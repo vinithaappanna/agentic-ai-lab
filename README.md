@@ -45,6 +45,13 @@ auditable. The claims-triage example shows the pattern end to end.
 `search` in a tool and the agent can ground answers in documents. See
 `examples/benefits_rag_agent.py` (synthetic plan FAQ, illustrative text only).
 
+## Planner-executor
+
+`agentlab.planner.plan_and_execute(planner_llm, agent, task)` asks a planner for
+a validated list of sub-tasks, then runs each through the agent with earlier
+results as context. A bad plan raises `PlanError`; a sub-task that doesn't
+finish stops the run and sets `completed=False`.
+
 ## Per-run call budgets
 
 `@tools.register(..., max_calls=2)` caps how often a tool can run in one agent
@@ -98,5 +105,4 @@ model-agnostic.
 
 ## Roadmap
 
-- Planner-executor pattern on top of the same loop
 - Retry/backoff and structured-output helpers in the real-model adapter
