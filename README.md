@@ -108,6 +108,7 @@ python examples/calculator_agent.py   # watch a scripted agent solve 6 * 7 + 0
 python examples/claims_triage_agent.py  # synthetic claims triage + approval gate
 python examples/expense_audit_agent.py  # synthetic expense auditing (finance)
 python examples/benefits_rag_agent.py  # retrieval-as-a-tool, synthetic benefits FAQ
+python examples/guardrail_evals.py     # policy + eval cases: guardrail regression suite
 python -m pytest                      # run the offline test suite
 ```
 
