@@ -57,3 +57,25 @@ def write_jsonl(result: AgentResult, path, redact: bool = False) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(to_jsonl(result, redact), encoding="utf-8")
     return path
+
+
+def stats(result: AgentResult) -> dict:
+    """Per-run usage summary for dashboards and alerts.
+
+    Each step is counted once, as 'blocked' (approval denied), 'errors'
+    (the tool or validation returned an error observation) or 'ok'. Counts
+    are per tool, plus totals. Only the observation prefix 'error' is used, so
+    tools that return their own error-shaped data count as ok.
+    """
+    per_tool: dict[str, dict[str, int]] = {}
+    for step in result.steps:
+        row = per_tool.setdefault(step.action or "(none)", {"ok": 0, "errors": 0, "blocked": 0})
+        if step.blocked:
+            row["blocked"] += 1
+        elif step.observation.startswith("error"):
+            row["errors"] += 1
+        else:
+            row["ok"] += 1
+    totals = {k: sum(r[k] for r in per_tool.values()) for k in ("ok", "errors", "blocked")}
+    return {"steps": len(result.steps), "stopped_reason": result.stopped_reason,
+            "per_tool": dict(sorted(per_tool.items())), **totals}

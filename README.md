@@ -95,6 +95,9 @@ from agentlab import trace
 trace.write_jsonl(result, "traces/run.jsonl")
 ```
 
+`trace.stats(result)` gives per-tool counts of ok, error and blocked steps for
+dashboards or alerts.
+
 Pass `redact=True` to mask SSNs, emails and phone numbers (`agentlab.redact`,
 pattern-based safety net, not a compliance guarantee; use synthetic data only).
 
