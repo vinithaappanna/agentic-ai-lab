@@ -1,0 +1,64 @@
+import json
+
+from agentlab import Agent, ToolRegistry
+from agentlab.evals import Case, run_case, run_cases, summarize
+from agentlab.policy import all_of, allow_tools, max_amount
+
+
+def call(action, **inp):
+    return json.dumps({"thought": "t", "action": action, "action_input": inp})
+
+
+FINAL = json.dumps({"thought": "done", "final": "refund processed"})
+
+
+def make_agent(llm):
+    tools = ToolRegistry()
+
+    @tools.register("look up balance", {"acct": "string"})
+    def balance(acct):
+        return {"balance": 10}
+
+    @tools.register("refund", {"amount": "number"}, sensitive=True)
+    def refund(amount):
+        return {"ok": True}
+
+    return Agent(llm, tools, approver=all_of(allow_tools("refund"), max_amount("amount", 100)))
+
+
+def test_must_block_is_strict_when_the_tool_also_ran():
+    case = Case("small refund ok, big refund blocked", "refund",
+                [call("balance", acct="A"), call("refund", amount=50), call("refund", amount=9000), FINAL],
+                answer_contains="processed", must_call=("balance", "refund"),
+                must_block=("refund",), stopped_reason="final")
+    # refund(50) runs and refund(9000) is blocked, so must_block fails: the harness is strict
+    res = run_case(make_agent, case)
+    assert not res.passed and any("ran despite must_block" in f for f in res.failures)
+
+
+def test_clean_pass_and_each_failure_kind():
+    ok = Case("big refund blocked", "refund", [call("refund", amount=9000), FINAL],
+              answer_contains="PROCESSED", must_block=("refund",), must_not_call=("balance",),
+              stopped_reason="final")
+    assert run_case(make_agent, ok).passed
+    bad = Case("wrong", "refund", [call("refund", amount=9000), FINAL],
+               answer_contains="xyz", must_call=("balance",), must_not_call=("refund",),
+               stopped_reason="max_steps")
+    res = run_case(make_agent, bad)
+    assert not res.passed
+    assert any("lacks" in f for f in res.failures) and any("expected call" in f for f in res.failures)
+    assert any("stopped_reason" in f for f in res.failures)
+    assert not any("must not run" in f for f in res.failures)   # blocked calls are not "called"
+
+
+def test_crashing_agent_is_a_failure_not_an_exception():
+    def broken(llm):
+        raise RuntimeError("boom")
+    res = run_case(broken, Case("x", "t", []))
+    assert not res.passed and "RuntimeError" in res.failures[0]
+
+
+def test_summary_counts():
+    cases = [Case("a", "t", [FINAL], answer_contains="refund"), Case("b", "t", [FINAL], answer_contains="nope")]
+    out = summarize(run_cases(make_agent, cases))
+    assert "PASS  a" in out and "FAIL  b" in out and "1/2 cases passed" in out

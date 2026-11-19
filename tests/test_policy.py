@@ -45,7 +45,7 @@ def test_policy_drives_agent_gate_and_audit_log():
     policy = audited(all_of(allow_tools("refund"), max_amount("amount", 100)), log)
     steps = [json.dumps({"thought": "small", "action": "refund", "action_input": {"amount": 40}}),
              json.dumps({"thought": "big", "action": "refund", "action_input": {"amount": 4000}}),
-             json.dumps({"thought": "done", "final_answer": "ok"})]
+             json.dumps({"thought": "done", "final": "ok"})]
     result = Agent(MockLLM(steps), tools, approver=policy).run("refund please")
     assert done == [40]                                # the 4000 call never ran
     assert [d["allowed"] for d in log] == [True, False]
