@@ -50,3 +50,28 @@ def test_stops_at_first_failed_subtask():
     out = plan_and_execute(plan_llm(["step one", "step two"]), agent, "task")
     assert out.completed is False and out.answer is None
     assert len(out.results) == 1  # step two never ran
+
+
+def test_retry_reruns_unfinished_subtask_and_records_attempts():
+    garbage = "not json"
+    # first attempt burns all 3 steps on invalid replies, second attempt answers
+    agent = agent_with([garbage, garbage, garbage, final("ok")])
+    out = plan_and_execute(plan_llm(["only step"]), agent, "task", retries=1)
+    assert out.completed and out.answer == "ok"
+    assert out.attempts == [2] and len(out.results) == 1       # last attempt kept
+
+
+def test_no_retry_by_default_and_retries_are_bounded():
+    garbage = "not json"
+    out = plan_and_execute(plan_llm(["s"]), agent_with([garbage] * 3 + [final("late")]), "task")
+    assert not out.completed and out.attempts == [1]
+    out2 = plan_and_execute(plan_llm(["s"]), agent_with([garbage] * 9 + [final("late")]), "task", retries=2)
+    assert not out2.completed and out2.attempts == [3]          # 1 run + 2 retries, then stop
+
+
+def test_loop_detected_is_never_retried_and_negative_retries_rejected():
+    stuck = json.dumps({"thought": "t", "action": "add", "action_input": {"a": 1, "b": 1}})
+    out = plan_and_execute(plan_llm(["s"]), agent_with([stuck] * 3 + [final("x")]), "task", retries=2)
+    assert out.results[0].stopped_reason == "loop_detected" and out.attempts == [1]
+    with pytest.raises(ValueError):
+        plan_and_execute(plan_llm(["s"]), agent_with([]), "task", retries=-1)

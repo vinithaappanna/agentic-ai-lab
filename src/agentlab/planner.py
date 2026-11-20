@@ -26,6 +26,7 @@ class PlanResult:
     plan: list[str]
     results: list[AgentResult] = field(default_factory=list)
     completed: bool = True  # False when a sub-task did not finish with a final answer
+    attempts: list[int] = field(default_factory=list)  # runs used per sub-task (1 = no retry)
 
     @property
     def answer(self) -> str | None:
@@ -44,16 +45,30 @@ def make_plan(llm, task: str, max_steps: int = 5) -> list[str]:
     return [s.strip() for s in steps]
 
 
-def plan_and_execute(planner_llm, agent: Agent, task: str, max_steps: int = 5) -> PlanResult:
+def plan_and_execute(planner_llm, agent: Agent, task: str, max_steps: int = 5,
+                     retries: int = 0) -> PlanResult:
     """Plan, then run each sub-task through `agent`, stopping at the first
-    sub-task that fails to reach a final answer."""
+    sub-task that fails to reach a final answer.
+
+    `retries` re-runs a sub-task that did not finish (up to that many extra
+    times). Only the last attempt is kept in `results`; `attempts` records how
+    many runs each sub-task used. A sub-task that stopped for a safety reason
+    ("loop_detected") is never retried: repeating it would repeat the loop."""
+    if retries < 0:
+        raise ValueError("retries must be >= 0")
     plan = make_plan(planner_llm, task, max_steps)
     out = PlanResult(plan=plan)
     context: list[str] = []
     for i, sub in enumerate(plan, 1):
         prompt = sub if not context else f"{sub}\n\nResults so far:\n" + "\n".join(context)
+        used = 1
         result = agent.run(prompt)
+        while (result.answer is None and result.stopped_reason != "loop_detected"
+               and used <= retries):
+            used += 1
+            result = agent.run(prompt)
         out.results.append(result)
+        out.attempts.append(used)
         if result.answer is None:
             out.completed = False
             break

@@ -73,7 +73,9 @@ term like "deductible" outranks several common ones.
 `agentlab.planner.plan_and_execute(planner_llm, agent, task)` asks a planner for
 a validated list of sub-tasks, then runs each through the agent with earlier
 results as context. A bad plan raises `PlanError`; a sub-task that doesn't
-finish stops the run and sets `completed=False`.
+finish stops the run and sets `completed=False`. `retries=N` re-runs an unfinished
+sub-task up to N more times (`PlanResult.attempts` records runs used); a
+`loop_detected` stop is never retried.
 
 ## Per-run call budgets
 
