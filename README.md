@@ -65,6 +65,9 @@ and approval policy offline; it does not measure a real model's quality.
 `search` in a tool and the agent can ground answers in documents. See
 `examples/benefits_rag_agent.py` (synthetic plan FAQ, illustrative text only).
 
+`KeywordRetriever(docs, weighting="idf")` weights matched terms by rarity, so a rare
+term like "deductible" outranks several common ones.
+
 ## Planner-executor
 
 `agentlab.planner.plan_and_execute(planner_llm, agent, task)` asks a planner for

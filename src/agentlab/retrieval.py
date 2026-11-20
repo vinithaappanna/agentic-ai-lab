@@ -7,6 +7,7 @@ vector store behind the same `search` interface for real use.
 """
 from __future__ import annotations
 
+import math
 import re
 
 STOP_WORDS = frozenset(
@@ -18,18 +19,33 @@ def tokenize(text: str) -> list[str]:
 
 
 class KeywordRetriever:
-    def __init__(self, documents: dict[str, str]):
+    def __init__(self, documents: dict[str, str], weighting: str = "count"):
+        """weighting="count" scores by matched terms; "idf" weights each matched
+        term by how rare it is across the documents, so a rare term like
+        "deductible" outranks several common ones."""
+        if weighting not in ("count", "idf"):
+            raise ValueError("weighting must be 'count' or 'idf'")
+        self.weighting = weighting
         self._docs = dict(documents)
         self._tokens = {doc_id: set(tokenize(text)) for doc_id, text in self._docs.items()}
+        n = len(self._docs)
+        df: dict[str, int] = {}
+        for toks in self._tokens.values():
+            for t in toks:
+                df[t] = df.get(t, 0) + 1
+        # smoothed idf, always > 0, so a matching term never scores zero
+        self._idf = {t: math.log(1 + n / c) for t, c in df.items()}
 
     def search(self, query: str, k: int = 3) -> list[dict]:
         """Top-k documents with at least one matching term, best first."""
         terms = set(tokenize(query))
         scored = []
         for doc_id, toks in self._tokens.items():
-            score = len(terms & toks)
-            if score:
+            matched = terms & toks
+            score = (sum(self._idf[t] for t in matched) if self.weighting == "idf"
+                     else len(matched))
+            if matched:
                 scored.append((-score, len(self._docs[doc_id]), doc_id))
         scored.sort()
-        return [{"id": doc_id, "score": -neg, "text": self._docs[doc_id]}
+        return [{"id": doc_id, "score": round(-neg, 4) if self.weighting == "idf" else -neg, "text": self._docs[doc_id]}
                 for neg, _len, doc_id in scored[:max(k, 0)]]
