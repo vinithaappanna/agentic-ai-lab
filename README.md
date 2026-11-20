@@ -105,6 +105,8 @@ dashboards or alerts.
 
 Pass `redact=True` to mask SSNs, emails and phone numbers (`agentlab.redact`,
 pattern-based safety net, not a compliance guarantee; use synthetic data only).
+Opt-in `HEALTH_PATTERNS` (member id, MRN, date of birth; illustrative formats) go
+in through `extra=`.
 
 Regulated workflows (claims, refunds) get a durable record of what the
 agent did and what the approver allowed or denied.

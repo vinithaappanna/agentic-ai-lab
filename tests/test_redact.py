@@ -52,3 +52,20 @@ def test_trace_redaction_is_opt_in_and_covers_all_fields():
 def test_write_jsonl_redact(tmp_path):
     out = write_jsonl(run(), tmp_path / "t.jsonl", redact=True)
     assert "jane@example.com" not in out.read_text()
+
+
+def test_health_patterns_mask_ids_and_dates_only_when_requested():
+    from agentlab.redact import HEALTH_PATTERNS, redact_text, redact_value
+    text = "Member MBR-0042 (MRN: 1234567) born 3/14/1985, call 555-123-4567."
+    default = redact_text(text)
+    assert "MBR-0042" in default and "[PHONE]" in default            # health patterns are opt-in
+    out = redact_text(text, extra=HEALTH_PATTERNS)
+    assert out == "Member [MEMBER_ID] ([MRN]) born [DOB], call [PHONE]."
+    nested = redact_value({"notes": ["see MBR-100", {"dob": "12/31/2001"}]}, HEALTH_PATTERNS)
+    assert nested == {"notes": ["see [MEMBER_ID]", {"dob": "[DOB]"}]}
+
+
+def test_health_patterns_do_not_overmatch():
+    from agentlab.redact import HEALTH_PATTERNS, redact_text
+    safe = "Claim CLM-00042 on 13/45/2020 and MBR-12 and MRN 12 and version 3/14/1785"
+    assert redact_text(safe, extra=HEALTH_PATTERNS) == safe          # too short, invalid month/day, year out of range

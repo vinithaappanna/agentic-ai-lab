@@ -15,6 +15,16 @@ DEFAULT_PATTERNS = {
 }
 
 
+# Optional extras for healthcare-style text. Pass as `extra=HEALTH_PATTERNS`.
+# Formats are illustrative (synthetic IDs such as MBR-0042); real identifiers
+# vary by organization, so adapt them and never treat this as de-identification.
+HEALTH_PATTERNS = {
+    "MEMBER_ID": r"\bMBR-\d{3,}\b",
+    "MRN": r"\bMRN[ :#-]*\d{5,}\b",
+    "DOB": r"\b(?:0?[1-9]|1[0-2])/(?:0?[1-9]|[12]\d|3[01])/(?:19|20)\d{2}\b",
+}
+
+
 def redact_text(text: str, extra: dict[str, str] | None = None) -> str:
     """Replace matches with [LABEL]. `extra` maps label -> regex."""
     for label, pattern in {**DEFAULT_PATTERNS, **(extra or {})}.items():
