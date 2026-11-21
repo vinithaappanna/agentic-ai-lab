@@ -23,6 +23,7 @@ class Case:
     must_call: tuple[str, ...] = ()
     must_not_call: tuple[str, ...] = ()
     must_block: tuple[str, ...] = ()       # tools whose calls must all have been blocked
+    call_order: tuple[str, ...] = ()       # these tools must run in this relative order
     stopped_reason: str | None = None
 
 
@@ -55,6 +56,15 @@ def run_case(make_agent: Callable, case: Case) -> CaseResult:
             failures.append(f"expected {t!r} to be blocked")
         if t in called:
             failures.append(f"{t!r} ran despite must_block")
+    if case.call_order:
+        # each named tool must appear after the previous one, e.g. look up a claim
+        # before recommending an adjustment. Greedy subsequence match on unblocked calls.
+        pos = 0
+        for name in called:
+            if pos < len(case.call_order) and name == case.call_order[pos]:
+                pos += 1
+        if pos < len(case.call_order):
+            failures.append(f"expected calls in order {list(case.call_order)}, got {called}")
     if case.stopped_reason is not None and result.stopped_reason != case.stopped_reason:
         failures.append(f"stopped_reason {result.stopped_reason!r} != {case.stopped_reason!r}")
     return CaseResult(case.name, not failures, failures)

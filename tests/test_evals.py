@@ -62,3 +62,20 @@ def test_summary_counts():
     cases = [Case("a", "t", [FINAL], answer_contains="refund"), Case("b", "t", [FINAL], answer_contains="nope")]
     out = summarize(run_cases(make_agent, cases))
     assert "PASS  a" in out and "FAIL  b" in out and "1/2 cases passed" in out
+
+
+def test_call_order_passes_in_order_and_fails_out_of_order():
+    ok = Case("lookup then refund", "refund",
+              [call("balance", acct="A"), call("refund", amount=50), FINAL],
+              call_order=("balance", "refund"))
+    assert run_case(make_agent, ok).passed
+    bad = Case("refund before lookup", "refund",
+               [call("refund", amount=50), call("balance", acct="A"), FINAL],
+               call_order=("balance", "refund"))
+    res = run_case(make_agent, bad)
+    assert not res.passed and any("in order" in f for f in res.failures)
+    # a blocked call does not count as having run
+    blocked = Case("blocked refund", "refund",
+                   [call("balance", acct="A"), call("refund", amount=9000), FINAL],
+                   call_order=("balance", "refund"))
+    assert not run_case(make_agent, blocked).passed

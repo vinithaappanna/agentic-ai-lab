@@ -55,7 +55,7 @@ agent = Agent(llm, tools, approver=policy)
 ## Behavior regression cases
 
 `agentlab.evals` runs `Case`s (task, scripted model, expectations such as
-`answer_contains`, `must_call`, `must_not_call`, `must_block`, `stopped_reason`)
+`answer_contains`, `must_call`, `must_not_call`, `must_block`, `call_order`, `stopped_reason`)
 against a fresh agent and prints a PASS/FAIL summary. It tests your loop, tools
 and approval policy offline; it does not measure a real model's quality.
 
