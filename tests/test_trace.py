@@ -73,3 +73,17 @@ def test_stats_empty_run():
     from agentlab import trace
     assert trace.stats(AgentResult(None, [], "max_steps")) == {
         "steps": 0, "stopped_reason": "max_steps", "per_tool": {}, "ok": 0, "errors": 0, "blocked": 0}
+
+
+def test_audit_summary_round_trips_a_run_and_tolerates_bad_lines():
+    from agentlab.trace import audit_summary
+    text = to_jsonl(run_with_one_blocked_step())
+    out = audit_summary(text)
+    assert out["steps"] == 2 and out["blocked"] == 1
+    assert out["actions"] == {"act": 1, "search": 1}
+    assert out["blocked_actions"] == {"act": 1}
+    assert out["stopped_reason"] and out["malformed_lines"] == 0
+    noisy = audit_summary("not json\n\n" + text)
+    assert noisy["malformed_lines"] == 1 and noisy["steps"] == 2
+    assert audit_summary("") == {"steps": 0, "blocked": 0, "actions": {}, "blocked_actions": {},
+                                 "stopped_reason": None, "malformed_lines": 0}

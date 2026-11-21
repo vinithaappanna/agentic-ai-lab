@@ -79,3 +79,34 @@ def stats(result: AgentResult) -> dict:
     totals = {k: sum(r[k] for r in per_tool.values()) for k in ("ok", "errors", "blocked")}
     return {"steps": len(result.steps), "stopped_reason": result.stopped_reason,
             "per_tool": dict(sorted(per_tool.items())), **totals}
+
+
+def audit_summary(jsonl_text: str) -> dict:
+    """Read a trace written by to_jsonl back and summarize it for a reviewer:
+    steps, how many the approval gate blocked, which actions ran and which
+    were blocked, and how the run stopped. Malformed lines are counted, not
+    fatal, so one bad line does not hide the rest of the audit trail."""
+    steps = blocked = bad = 0
+    actions: dict[str, int] = {}
+    blocked_actions: dict[str, int] = {}
+    stopped = None
+    for line in jsonl_text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            row = json.loads(line)
+        except json.JSONDecodeError:
+            bad += 1
+            continue
+        if row.get("type") == "step":
+            steps += 1
+            name = row.get("action") or "(none)"
+            actions[name] = actions.get(name, 0) + 1
+            if row.get("blocked"):
+                blocked += 1
+                blocked_actions[name] = blocked_actions.get(name, 0) + 1
+        elif row.get("type") == "summary":
+            stopped = row.get("stopped_reason")
+    return {"steps": steps, "blocked": blocked, "actions": dict(sorted(actions.items())),
+            "blocked_actions": dict(sorted(blocked_actions.items())),
+            "stopped_reason": stopped, "malformed_lines": bad}

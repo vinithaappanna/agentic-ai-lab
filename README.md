@@ -101,7 +101,8 @@ trace.write_jsonl(result, "traces/run.jsonl")
 ```
 
 `trace.stats(result)` gives per-tool counts of ok, error and blocked steps for
-dashboards or alerts.
+dashboards or alerts. `trace.audit_summary(jsonl_text)` reads a saved JSONL trace
+back for a reviewer: step count, blocked steps, actions run and blocked, stop reason.
 
 Pass `redact=True` to mask SSNs, emails and phone numbers (`agentlab.redact`,
 pattern-based safety net, not a compliance guarantee; use synthetic data only).
