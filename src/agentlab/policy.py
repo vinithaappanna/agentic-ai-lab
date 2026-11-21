@@ -66,3 +66,28 @@ def audited(rule: Rule, log: list) -> Rule:
         log.append({"tool": name, "arguments": dict(args), "allowed": decision})
         return decision
     return wrapped
+
+
+def cumulative_cap(field: str, limit: float, tools: tuple[str, ...] | None = None) -> Rule:
+    """Stateful rule: allow a call only while the running total of numeric
+    `field` across calls this rule allowed stays within `limit` (a per-run
+    spending-style budget on top of a per-call `max_amount`). Create one per
+    run. Put it LAST in `all_of`, which short-circuits, so only calls every
+    other rule allowed are counted. A denied call adds nothing; a missing or
+    non-numeric value is denied. The running total is `rule.state["spent"]`.
+    Illustrative; nothing here moves money."""
+    state = {"spent": 0.0}
+
+    def rule(name: str, args: dict) -> bool:
+        if tools is not None and name not in tools:
+            return True
+        value = args.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+            return False
+        if state["spent"] + value > limit:
+            return False
+        state["spent"] += value
+        return True
+
+    rule.state = state          # type: ignore[attr-defined]  # rule.state["spent"] is the running total
+    return rule

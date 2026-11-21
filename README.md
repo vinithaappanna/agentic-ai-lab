@@ -52,6 +52,9 @@ policy = all_of(allow_tools("refund"), max_amount("amount", 100))
 agent = Agent(llm, tools, approver=policy)
 ```
 
+`cumulative_cap("amount", 500)` adds a per-run running-total budget (one instance per run,
+placed last in `all_of` so only otherwise-allowed calls count; denied calls add nothing).
+
 ## Behavior regression cases
 
 `agentlab.evals` runs `Case`s (task, scripted model, expectations such as

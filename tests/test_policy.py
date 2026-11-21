@@ -50,3 +50,29 @@ def test_policy_drives_agent_gate_and_audit_log():
     assert done == [40]                                # the 4000 call never ran
     assert [d["allowed"] for d in log] == [True, False]
     assert any(s.blocked for s in result.steps)
+
+
+def test_cumulative_cap_tracks_running_total_and_counts_only_allowed_calls():
+    from agentlab.policy import cumulative_cap
+    cap = cumulative_cap("amount", 100, tools=("refund",))
+    assert cap("refund", {"amount": 60}) is True
+    assert cap("refund", {"amount": 50}) is False              # 110 > 100: denied, adds nothing
+    assert cap.state["spent"] == 60
+    assert cap("refund", {"amount": 40}) is True                # exactly at the cap
+    assert cap("refund", {"amount": 0.01}) is False
+    assert cap("lookup", {"amount": 999}) is True               # out of scope: passes, not counted
+    for bad in ({}, {"amount": "5"}, {"amount": True}, {"amount": -5}):
+        assert cap("refund", bad) is False
+    assert cap.state["spent"] == 100
+
+
+def test_cumulative_cap_last_in_all_of_ignores_calls_other_rules_deny():
+    from agentlab.policy import cumulative_cap
+    cap = cumulative_cap("amount", 100)
+    pol = all_of(allow_tools("refund"), max_amount("amount", 80), cap)
+    assert pol("refund", {"amount": 90}) is False               # per-call cap denies first
+    assert pol("other", {"amount": 10}) is False                # tool not allowed
+    assert cap.state["spent"] == 0
+    assert pol("refund", {"amount": 70}) is True
+    assert pol("refund", {"amount": 40}) is False               # would reach 110
+    assert cap.state["spent"] == 70
