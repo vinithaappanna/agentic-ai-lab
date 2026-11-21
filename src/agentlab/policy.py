@@ -13,6 +13,46 @@ from typing import Callable
 Rule = Callable[[str, dict], bool]
 
 
+class UnsupportedComposition(RuntimeError):
+    """A stateful rule (one that spends a budget) was called outside
+    all_of / any_of / audited. Raised instead of guessing, because a wrapper
+    that cannot tell "this rule allowed" from "the whole decision allowed"
+    could spend budget on a call that is then denied. It is never swallowed
+    by all_of / any_of (which otherwise treat a raising rule as deny)."""
+
+
+def _plan(rule: Rule, name: str, args: dict):
+    """Evaluate a rule without side effects. Returns a list of commit
+    callables when the rule allows (empty for stateless rules) or None when it
+    denies. Stateful rules and the composites expose `_plan`; plain rules are
+    called directly. A plain rule that raises denies."""
+    planner = getattr(rule, "_plan", None)
+    if planner is not None:
+        return planner(name, args)
+    try:
+        return [] if rule(name, args) else None
+    except UnsupportedComposition:
+        raise
+    except Exception:
+        return None
+
+
+def _with_plan(planner: Callable) -> Callable[[Rule], Rule]:
+    def attach(fn: Rule) -> Rule:
+        fn._plan = planner          # type: ignore[attr-defined]
+        return fn
+    return attach
+
+
+def _run_plan(planner: Callable, name: str, args: dict) -> bool:
+    commits = planner(name, args)
+    if commits is None:
+        return False
+    for c in commits:               # budgets are spent only now, after the whole decision allowed
+        c()
+    return True
+
+
 def allow_tools(*names: str) -> Rule:
     """Allow only the named tools."""
     allowed = set(names)
@@ -39,55 +79,71 @@ def require_text(field: str, needle: str) -> Rule:
 
 
 def all_of(*rules: Rule) -> Rule:
-    def rule(name: str, args: dict) -> bool:
-        try:
-            return all(r(name, args) for r in rules)
-        except Exception:
-            return False
-    return rule
+    def planner(name: str, args: dict):
+        commits: list = []
+        for r in rules:
+            sub = _plan(r, name, args)
+            if sub is None:
+                return None          # one denial denies the call and spends nothing
+            commits.extend(sub)
+        return commits
+
+    return _with_plan(planner)(lambda name, args: _run_plan(planner, name, args))
 
 
 def any_of(*rules: Rule) -> Rule:
-    def rule(name: str, args: dict) -> bool:
+    def planner(name: str, args: dict):
         for r in rules:
-            try:
-                if r(name, args):
-                    return True
-            except Exception:
-                continue
-        return False
-    return rule
+            sub = _plan(r, name, args)
+            if sub is not None:
+                return sub           # only the winning branch spends budget
+        return None
+
+    return _with_plan(planner)(lambda name, args: _run_plan(planner, name, args))
 
 
 def audited(rule: Rule, log: list) -> Rule:
-    """Wrap a rule so each decision is appended to `log` as a dict."""
-    def wrapped(name: str, args: dict) -> bool:
-        decision = bool(rule(name, args))
-        log.append({"tool": name, "arguments": dict(args), "allowed": decision})
-        return decision
-    return wrapped
+    """Wrap a rule so each decision is appended to `log` as a dict. Inside a
+    composite, the logged decision is this rule's own, made before the whole
+    composite has decided."""
+    def planner(name: str, args: dict):
+        sub = _plan(rule, name, args)
+        log.append({"tool": name, "arguments": dict(args), "allowed": sub is not None})
+        return sub
+
+    return _with_plan(planner)(lambda name, args: _run_plan(planner, name, args))
 
 
 def cumulative_cap(field: str, limit: float, tools: tuple[str, ...] | None = None) -> Rule:
     """Stateful rule: allow a call only while the running total of numeric
-    `field` across calls this rule allowed stays within `limit` (a per-run
-    spending-style budget on top of a per-call `max_amount`). Create one per
-    run. Put it LAST in `all_of`, which short-circuits, so only calls every
-    other rule allowed are counted. A denied call adds nothing; a missing or
-    non-numeric value is denied. The running total is `rule.state["spent"]`.
-    Illustrative; nothing here moves money."""
+    `field` across approved calls stays within `limit` (a per-run budget on
+    top of a per-call `max_amount`). Create one per run. Budget is spent only
+    when the WHOLE decision allows, so placement inside all_of / any_of /
+    audited does not matter: a call denied by another rule, an any_of branch
+    that loses, or a failure after the cap consumes nothing. Missing,
+    non-numeric or negative values are denied. Calling the rule directly (or
+    through a wrapper that is not all_of / any_of / audited) raises
+    UnsupportedComposition rather than risking a wrong spend. Running total:
+    `rule.state["spent"]`. Illustrative; nothing here moves money."""
     state = {"spent": 0.0}
 
-    def rule(name: str, args: dict) -> bool:
+    def planner(name: str, args: dict):
         if tools is not None and name not in tools:
-            return True
+            return []
         value = args.get(field)
         if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
-            return False
+            return None
         if state["spent"] + value > limit:
-            return False
-        state["spent"] += value
-        return True
+            return None
 
-    rule.state = state          # type: ignore[attr-defined]  # rule.state["spent"] is the running total
-    return rule
+        def commit(v=value):
+            state["spent"] += v
+        return [commit]
+
+    def rule(name: str, args: dict) -> bool:
+        raise UnsupportedComposition(
+            "cumulative_cap must be used inside all_of / any_of / audited; "
+            "wrap it as all_of(cumulative_cap(...)) to use it on its own")
+
+    rule.state = state              # type: ignore[attr-defined]
+    return _with_plan(planner)(rule)

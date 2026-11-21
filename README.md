@@ -52,8 +52,12 @@ policy = all_of(allow_tools("refund"), max_amount("amount", 100))
 agent = Agent(llm, tools, approver=policy)
 ```
 
-`cumulative_cap("amount", 500)` adds a per-run running-total budget (one instance per run,
-placed last in `all_of` so only otherwise-allowed calls count; denied calls add nothing).
+`cumulative_cap("amount", 500)` adds a per-run running-total budget (one instance per run).
+Budget is spent only when the whole composite decision allows, wherever the cap sits in
+`all_of` / `any_of` / `audited`; denied calls, losing `any_of` branches and later rule
+failures spend nothing. Calling it directly or through your own wrapper raises
+`UnsupportedComposition` instead of risking a wrong spend (use `all_of(cap)` on its own).
+If the approved tool itself then fails, the budget stays spent (conservative).
 
 ## Behavior regression cases
 
