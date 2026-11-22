@@ -62,7 +62,7 @@ If the approved tool itself then fails, the budget stays spent (conservative).
 ## Behavior regression cases
 
 `agentlab.evals` runs `Case`s (task, scripted model, expectations such as
-`answer_contains`, `must_call`, `must_not_call`, `must_block`, `call_order`, `stopped_reason`)
+`answer_contains`, `must_call`, `must_not_call`, `must_block`, `call_order`, `max_steps`, `stopped_reason`)
 against a fresh agent and prints a PASS/FAIL summary. It tests your loop, tools
 and approval policy offline (`evals.to_json(results)` exports pass/fail for CI artifacts); it does not measure a real model's quality.
 

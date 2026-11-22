@@ -91,3 +91,15 @@ def test_to_json_totals_and_failures_round_trip():
     assert out["cases"][0] == {"name": "ok", "passed": True, "failures": []}
     assert out["cases"][1]["passed"] is False and "refund" in out["cases"][1]["failures"][0]
     assert _json.loads(to_json([])) == {"total": 0, "passed": 0, "failed": 0, "cases": []}
+
+
+def test_max_steps_fails_when_the_run_is_too_long():
+    ok = Case("quick", "refund", [call("refund", amount=9000), FINAL], max_steps=2)
+    assert run_case(make_agent, ok).passed
+    # the final answer is not a step, so this run takes 2 steps
+    slow = Case("slow", "refund", [call("balance", acct="A"), call("refund", amount=9000), FINAL],
+                max_steps=1)
+    res = run_case(make_agent, slow)
+    assert not res.passed and any("2 steps, over the limit of 1" in f for f in res.failures)
+    edge = Case("edge", "refund", [call("refund", amount=9000), FINAL], max_steps=1)
+    assert run_case(make_agent, edge).passed        # exactly at the limit passes
