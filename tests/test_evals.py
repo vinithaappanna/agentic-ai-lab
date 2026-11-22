@@ -79,3 +79,15 @@ def test_call_order_passes_in_order_and_fails_out_of_order():
                    [call("balance", acct="A"), call("refund", amount=9000), FINAL],
                    call_order=("balance", "refund"))
     assert not run_case(make_agent, blocked).passed
+
+
+def test_to_json_totals_and_failures_round_trip():
+    import json as _json
+    from agentlab.evals import to_json
+    ok = Case("ok", "refund", [call("refund", amount=9000), FINAL], must_block=("refund",))
+    bad = Case("bad", "refund", [call("balance", acct="A"), FINAL], must_call=("refund",))
+    out = _json.loads(to_json(run_cases(make_agent, [ok, bad])))
+    assert (out["total"], out["passed"], out["failed"]) == (2, 1, 1)
+    assert out["cases"][0] == {"name": "ok", "passed": True, "failures": []}
+    assert out["cases"][1]["passed"] is False and "refund" in out["cases"][1]["failures"][0]
+    assert _json.loads(to_json([])) == {"total": 0, "passed": 0, "failed": 0, "cases": []}

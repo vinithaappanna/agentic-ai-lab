@@ -80,3 +80,16 @@ def summarize(results: list[CaseResult]) -> str:
     ok = sum(r.passed for r in results)
     lines.append(f"{ok}/{len(results)} cases passed")
     return "\n".join(lines)
+
+
+def to_json(results: list[CaseResult]) -> str:
+    """Machine-readable suite result for CI artifacts or dashboards: totals
+    plus each case's name, pass flag and failure messages."""
+    import json
+
+    return json.dumps({
+        "total": len(results),
+        "passed": sum(r.passed for r in results),
+        "failed": sum(not r.passed for r in results),
+        "cases": [{"name": r.name, "passed": r.passed, "failures": r.failures} for r in results],
+    }, indent=2)
