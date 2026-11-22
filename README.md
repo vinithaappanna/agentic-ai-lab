@@ -72,6 +72,7 @@ and approval policy offline; it does not measure a real model's quality.
 `search` in a tool and the agent can ground answers in documents. See
 `examples/benefits_rag_agent.py` (synthetic plan FAQ, illustrative text only).
 
+`search(query, min_score=2)` drops weak matches so an agent can decline instead of answering from a poor hit.
 `KeywordRetriever(docs, weighting="idf")` weights matched terms by rarity, so a rare
 term like "deductible" outranks several common ones.
 

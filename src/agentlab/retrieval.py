@@ -36,15 +36,18 @@ class KeywordRetriever:
         # smoothed idf, always > 0, so a matching term never scores zero
         self._idf = {t: math.log(1 + n / c) for t, c in df.items()}
 
-    def search(self, query: str, k: int = 3) -> list[dict]:
-        """Top-k documents with at least one matching term, best first."""
+    def search(self, query: str, k: int = 3, min_score: float = 0.0) -> list[dict]:
+        """Top-k documents with at least one matching term, best first. With
+        min_score > 0, weak matches are dropped, so an agent can tell "nothing
+        relevant" from "something weak" and decline instead of answering from a
+        poor hit (scores follow the weighting: matched-term count or idf sum)."""
         terms = set(tokenize(query))
         scored = []
         for doc_id, toks in self._tokens.items():
             matched = terms & toks
             score = (sum(self._idf[t] for t in matched) if self.weighting == "idf"
                      else len(matched))
-            if matched:
+            if matched and score >= min_score:
                 scored.append((-score, len(self._docs[doc_id]), doc_id))
         scored.sort()
         return [{"id": doc_id, "score": round(-neg, 4) if self.weighting == "idf" else -neg, "text": self._docs[doc_id]}

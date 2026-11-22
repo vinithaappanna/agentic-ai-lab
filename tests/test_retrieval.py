@@ -61,3 +61,17 @@ def test_idf_scores_positive_deterministic_and_validated():
     assert r.search("zzz") == [] and r.search("alpha", k=0) == []
     with pytest.raises(ValueError):
         KeywordRetriever(docs, weighting="bm25")
+
+
+def test_min_score_drops_weak_matches_for_both_weightings():
+    r = KeywordRetriever(DOCS)
+    all_hits = r.search("prior authorization MRI", k=5)
+    assert [h["id"] for h in all_hits][:2] == ["a", "c"] and all_hits[0]["score"] == 3
+    strong = r.search("prior authorization MRI", k=5, min_score=3)
+    assert [h["id"] for h in strong] == ["a", "c"]
+    assert r.search("deductible MRI", k=5, min_score=2) == []          # only single-term matches
+    assert r.search("deductible", k=5, min_score=0) != []               # default keeps everything
+    idf = KeywordRetriever(DOCS, weighting="idf")
+    top = idf.search("deductible", k=3)[0]["score"]
+    assert idf.search("deductible", k=3, min_score=top - 0.001)[0]["id"] == "b"   # score is rounded to 4 places
+    assert idf.search("deductible", k=3, min_score=top + 0.01) == []
