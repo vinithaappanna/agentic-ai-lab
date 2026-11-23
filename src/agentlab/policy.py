@@ -159,3 +159,33 @@ def require_fields(*fields: str, tools: tuple[str, ...] | None = None) -> Rule:
             return True
         return all(args.get(f) not in (None, "") for f in fields)
     return rule
+
+
+def max_calls(limit: int, tools: tuple[str, ...] | None = None) -> Rule:
+    """Stateful rule: allow at most `limit` approved calls per run (a call
+    count, complementing the amount-based `cumulative_cap`). Create one per
+    run. Like cumulative_cap it is composition-safe: a call is counted only
+    when the WHOLE decision allows, and calling it outside all_of / any_of /
+    audited raises UnsupportedComposition. Applies to the named tools only
+    (others pass and are not counted). Count: `rule.state["calls"]`."""
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit < 0:
+        raise ValueError("limit must be a non-negative integer")
+    state = {"calls": 0}
+
+    def planner(name: str, args: dict):
+        if tools is not None and name not in tools:
+            return []
+        if state["calls"] + 1 > limit:
+            return None
+
+        def commit():
+            state["calls"] += 1
+        return [commit]
+
+    def rule(name: str, args: dict) -> bool:
+        raise UnsupportedComposition(
+            "max_calls must be used inside all_of / any_of / audited; "
+            "wrap it as all_of(max_calls(...)) to use it on its own")
+
+    rule.state = state              # type: ignore[attr-defined]
+    return _with_plan(planner)(rule)

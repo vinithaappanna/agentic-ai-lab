@@ -54,6 +54,7 @@ agent = Agent(llm, tools, approver=policy)
 
 `require_fields("claim_id", "reason")` denies calls missing a required argument.
 `cumulative_cap("amount", 500)` adds a per-run running-total budget (one instance per run).
+`max_calls(3, tools=("refund",))` caps the number of approved calls per run the same way (counted only when the whole decision allows).
 Budget is spent only when the whole composite decision allows, wherever the cap sits in
 `all_of` / `any_of` / `audited`; denied calls, losing `any_of` branches and later rule
 failures spend nothing. Calling it directly or through your own wrapper raises

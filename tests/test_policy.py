@@ -130,3 +130,23 @@ def test_require_fields_missing_empty_and_scoped():
     assert r("flag_review", {"claim_id": "C1", "reason": "x", "extra": 1}) is True
     assert r("lookup", {}) is True                                          # out of scope passes
     assert require_fields("claim_id")("anything", {}) is False              # unscoped applies to all
+
+
+def test_max_calls_counts_only_fully_allowed_calls():
+    import pytest
+    from agentlab.policy import UnsupportedComposition, max_calls
+    cap = max_calls(2, tools=("refund",))
+    rule = all_of(max_amount("amount", 100), cap)
+    assert rule("refund", {"amount": 50}) and cap.state["calls"] == 1
+    assert not rule("refund", {"amount": 500}) and cap.state["calls"] == 1   # denied elsewhere: not counted
+    assert rule("lookup", {"amount": 1}) and cap.state["calls"] == 1          # out of scope: not counted
+    assert rule("refund", {"amount": 10}) and cap.state["calls"] == 2
+    assert not rule("refund", {"amount": 10}) and cap.state["calls"] == 2     # limit reached
+    # losing any_of branch consumes nothing
+    c2 = max_calls(1)
+    assert any_of(lambda n, a: True, all_of(c2))("t", {}) and c2.state["calls"] == 0
+    with pytest.raises(UnsupportedComposition):
+        cap("refund", {})
+    with pytest.raises(ValueError):
+        max_calls(-1)
+    assert not all_of(max_calls(0))("t", {})
