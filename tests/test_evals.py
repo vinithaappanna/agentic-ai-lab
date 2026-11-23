@@ -103,3 +103,12 @@ def test_max_steps_fails_when_the_run_is_too_long():
     assert not res.passed and any("2 steps, over the limit of 1" in f for f in res.failures)
     edge = Case("edge", "refund", [call("refund", amount=9000), FINAL], max_steps=1)
     assert run_case(make_agent, edge).passed        # exactly at the limit passes
+
+
+def test_max_tool_calls_counts_only_executed_calls():
+    script = [call("balance", acct="A"), call("balance", acct="B"), call("refund", amount=9000), FINAL]
+    ok = Case("two lookups allowed", "x", script, max_tool_calls={"balance": 2, "refund": 0})
+    assert run_case(make_agent, ok).passed          # blocked refund is not an executed call
+    tight = Case("one lookup allowed", "x", script, max_tool_calls={"balance": 1})
+    res = run_case(make_agent, tight)
+    assert not res.passed and any("'balance' ran 2 times, over the limit of 1" in f for f in res.failures)

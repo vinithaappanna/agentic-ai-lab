@@ -25,6 +25,7 @@ class Case:
     must_block: tuple[str, ...] = ()       # tools whose calls must all have been blocked
     call_order: tuple[str, ...] = ()       # these tools must run in this relative order
     max_steps: int | None = None             # fail when the run takes more steps than this
+    max_tool_calls: dict[str, int] = field(default_factory=dict)   # per-tool cap on executed (unblocked) calls
     stopped_reason: str | None = None
 
 
@@ -59,6 +60,10 @@ def run_case(make_agent: Callable, case: Case) -> CaseResult:
             failures.append(f"{t!r} ran despite must_block")
     if case.max_steps is not None and len(result.steps) > case.max_steps:
         failures.append(f"run took {len(result.steps)} steps, over the limit of {case.max_steps}")
+    for tool, cap in case.max_tool_calls.items():
+        n = called.count(tool)
+        if n > cap:
+            failures.append(f"{tool!r} ran {n} times, over the limit of {cap}")
     if case.call_order:
         # each named tool must appear after the previous one, e.g. look up a claim
         # before recommending an adjustment. Greedy subsequence match on unblocked calls.
