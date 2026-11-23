@@ -119,3 +119,14 @@ def test_cap_called_directly_or_via_foreign_wrapper_fails_clearly():
     with pytest.raises(UnsupportedComposition):
         any_of(foreign, allow_tools("refund"))("refund", {"amount": 10})
     assert cap.state["spent"] == 0
+
+
+def test_require_fields_missing_empty_and_scoped():
+    from agentlab.policy import require_fields
+    r = require_fields("claim_id", "reason", tools=("flag_review",))
+    assert r("flag_review", {"claim_id": "C1", "reason": "over max"}) is True
+    assert r("flag_review", {"claim_id": "C1"}) is False                    # missing reason
+    assert r("flag_review", {"claim_id": "C1", "reason": ""}) is False      # empty reason
+    assert r("flag_review", {"claim_id": "C1", "reason": "x", "extra": 1}) is True
+    assert r("lookup", {}) is True                                          # out of scope passes
+    assert require_fields("claim_id")("anything", {}) is False              # unscoped applies to all

@@ -147,3 +147,15 @@ def cumulative_cap(field: str, limit: float, tools: tuple[str, ...] | None = Non
 
     rule.state = state              # type: ignore[attr-defined]
     return _with_plan(planner)(rule)
+
+
+def require_fields(*fields: str, tools: tuple[str, ...] | None = None) -> Rule:
+    """Deny calls missing any of the named arguments, or with an empty string
+    value. Useful for regulated tools that must always carry an id or a reason,
+    e.g. require_fields("claim_id", "reason"). Applies to the named tools only
+    (others pass)."""
+    def rule(name: str, args: dict) -> bool:
+        if tools is not None and name not in tools:
+            return True
+        return all(args.get(f) not in (None, "") for f in fields)
+    return rule
