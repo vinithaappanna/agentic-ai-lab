@@ -48,7 +48,8 @@ class KeywordRetriever:
             score = (sum(self._idf[t] for t in matched) if self.weighting == "idf"
                      else len(matched))
             if matched and score >= min_score:
-                scored.append((-score, len(self._docs[doc_id]), doc_id))
+                scored.append((-score, len(self._docs[doc_id]), doc_id, sorted(matched)))
         scored.sort()
-        return [{"id": doc_id, "score": round(-neg, 4) if self.weighting == "idf" else -neg, "text": self._docs[doc_id]}
-                for neg, _len, doc_id in scored[:max(k, 0)]]
+        return [{"id": doc_id, "score": round(-neg, 4) if self.weighting == "idf" else -neg, "text": self._docs[doc_id],
+                 "matched": matched}   # which query terms hit: explains a result in an audit trail
+                for neg, _len, doc_id, matched in scored[:max(k, 0)]]

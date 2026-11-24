@@ -75,3 +75,10 @@ def test_min_score_drops_weak_matches_for_both_weightings():
     top = idf.search("deductible", k=3)[0]["score"]
     assert idf.search("deductible", k=3, min_score=top - 0.001)[0]["id"] == "b"   # score is rounded to 4 places
     assert idf.search("deductible", k=3, min_score=top + 0.01) == []
+
+
+def test_results_list_matched_terms_sorted():
+    r = KeywordRetriever({"a": "deductible and copay rules", "b": "network rules"})
+    out = r.search("what is the copay deductible rules")
+    assert out[0]["id"] == "a" and out[0]["matched"] == ["copay", "deductible", "rules"]
+    assert out[1]["matched"] == ["rules"]
