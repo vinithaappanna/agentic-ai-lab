@@ -25,8 +25,30 @@ HEALTH_PATTERNS = {
 }
 
 
+CARD_CANDIDATE = re.compile(r"(?<![\w-])(?:\d[ -]?){12,18}\d(?![\w-])")
+
+
+def luhn_valid(digits: str) -> bool:
+    """Luhn checksum, the check digit payment card numbers carry."""
+    nums = [int(c) for c in digits][::-1]
+    total = sum(nums[0::2]) + sum(sum(divmod(2 * n, 10)) for n in nums[1::2])
+    return total % 10 == 0
+
+
+def _mask_cards(text: str) -> str:
+    """Mask 13-19 digit runs (spaces or dashes allowed) that pass the Luhn
+    check. The checksum keeps order numbers and timestamps from being masked
+    by accident, though about one in ten random digit runs still passes."""
+    def repl(m: re.Match) -> str:
+        digits = re.sub(r"\D", "", m.group(0))
+        return "[CARD]" if 13 <= len(digits) <= 19 and luhn_valid(digits) else m.group(0)
+    return CARD_CANDIDATE.sub(repl, text)
+
+
 def redact_text(text: str, extra: dict[str, str] | None = None) -> str:
-    """Replace matches with [LABEL]. `extra` maps label -> regex."""
+    """Replace matches with [LABEL]. `extra` maps label -> regex. Also masks
+    Luhn-valid card numbers as [CARD]."""
+    text = _mask_cards(text)
     for label, pattern in {**DEFAULT_PATTERNS, **(extra or {})}.items():
         text = re.sub(pattern, f"[{label}]", text)
     return text

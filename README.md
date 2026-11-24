@@ -114,7 +114,7 @@ trace.write_jsonl(result, "traces/run.jsonl")
 dashboards or alerts. `trace.audit_summary(jsonl_text)` reads a saved JSONL trace
 back for a reviewer: step count, blocked steps, actions run and blocked, stop reason.
 
-Pass `redact=True` to mask SSNs, emails and phone numbers (`agentlab.redact`,
+Pass `redact=True` to mask SSNs, emails, phone numbers and Luhn-valid card numbers (`agentlab.redact`,
 pattern-based safety net, not a compliance guarantee; use synthetic data only).
 Opt-in `HEALTH_PATTERNS` (member id, MRN, date of birth; illustrative formats) go
 in through `extra=`.

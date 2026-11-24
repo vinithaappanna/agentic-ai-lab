@@ -69,3 +69,13 @@ def test_health_patterns_do_not_overmatch():
     from agentlab.redact import HEALTH_PATTERNS, redact_text
     safe = "Claim CLM-00042 on 13/45/2020 and MBR-12 and MRN 12 and version 3/14/1785"
     assert redact_text(safe, extra=HEALTH_PATTERNS) == safe          # too short, invalid month/day, year out of range
+
+
+def test_masks_luhn_valid_cards_only():
+    from agentlab.redact import luhn_valid
+    assert luhn_valid("4111111111111111") and not luhn_valid("4111111111111112")
+    out = redact_text("pay 4111 1111 1111 1111 or 5500-0000-0000-0004, ref 4111111111111112, id 1234567")
+    assert out.count("[CARD]") == 2
+    assert "4111111111111112" in out and "1234567" in out        # fails Luhn / too short: kept
+    assert redact_text("claim 12345 paid 1500.25 code 99213") == "claim 12345 paid 1500.25 code 99213"
+    assert redact_text("SSN 123-45-6789") == "SSN [SSN]"
