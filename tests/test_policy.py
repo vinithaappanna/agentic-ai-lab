@@ -150,3 +150,13 @@ def test_max_calls_counts_only_fully_allowed_calls():
     with pytest.raises(ValueError):
         max_calls(-1)
     assert not all_of(max_calls(0))("t", {})
+
+
+def test_forbid_pattern_scope_missing_and_non_string():
+    from agentlab.policy import forbid_pattern
+    r = forbid_pattern("note", r"\b\d{3}-\d{2}-\d{4}\b", tools=("flag",))
+    assert r("flag", {"note": "member called about claim"})
+    assert not r("flag", {"note": "SSN 123-45-6789 on file"})
+    assert r("flag", {}) and r("other", {"note": "123-45-6789"})   # missing field / out of scope pass
+    assert not r("flag", {"note": 123456789})                     # cannot check: deny
+    assert not all_of(allow_tools("flag"), r)("flag", {"note": "123-45-6789"})

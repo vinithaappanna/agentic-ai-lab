@@ -189,3 +189,23 @@ def max_calls(limit: int, tools: tuple[str, ...] | None = None) -> Rule:
 
     rule.state = state              # type: ignore[attr-defined]
     return _with_plan(planner)(rule)
+
+
+def forbid_pattern(field: str, pattern: str, tools: tuple[str, ...] | None = None) -> Rule:
+    """Deny calls whose string `field` matches the regex `pattern` anywhere,
+    e.g. keep an SSN-shaped value out of a free-text note:
+    forbid_pattern("note", r"\\b\\d{3}-\\d{2}-\\d{4}\\b"). Applies to the named tools only
+    (others pass). A missing field passes (use require_fields to demand it);
+    a non-string value is denied, since it cannot be checked. Illustrative
+    guardrail, not DLP."""
+    import re
+    rx = re.compile(pattern)
+
+    def rule(name: str, args: dict) -> bool:
+        if tools is not None and name not in tools:
+            return True
+        if field not in args:
+            return True
+        value = args[field]
+        return isinstance(value, str) and rx.search(value) is None
+    return rule
