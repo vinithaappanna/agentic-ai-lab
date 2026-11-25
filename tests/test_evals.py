@@ -112,3 +112,14 @@ def test_max_tool_calls_counts_only_executed_calls():
     tight = Case("one lookup allowed", "x", script, max_tool_calls={"balance": 1})
     res = run_case(make_agent, tight)
     assert not res.passed and any("'balance' ran 2 times, over the limit of 1" in f for f in res.failures)
+
+
+def test_answer_excludes_catches_leaks_case_insensitively():
+    leak = json.dumps({"thought": "d", "final": "Member MBR-0042 refund processed"})
+    script = [leak]
+    bad = Case("no member id in answer", "x", script, answer_excludes=("mbr-0042", "ssn"))
+    res = run_case(make_agent, bad)
+    assert not res.passed and any("forbidden text 'mbr-0042'" in f for f in res.failures)
+    assert not any("'ssn'" in f for f in res.failures)
+    ok = Case("clean answer", "x", [FINAL], answer_excludes=("mbr-0042",))
+    assert run_case(make_agent, ok).passed

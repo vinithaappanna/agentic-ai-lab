@@ -20,6 +20,7 @@ class Case:
     task: str
     script: list
     answer_contains: str | None = None
+    answer_excludes: tuple[str, ...] = ()   # the final answer must contain none of these (case-insensitive), e.g. a leaked id
     must_call: tuple[str, ...] = ()
     must_not_call: tuple[str, ...] = ()
     must_block: tuple[str, ...] = ()       # tools whose calls must all have been blocked
@@ -47,6 +48,9 @@ def run_case(make_agent: Callable, case: Case) -> CaseResult:
     blocked = [s.action for s in result.steps if s.blocked]
     if case.answer_contains is not None and case.answer_contains.lower() not in result.answer.lower():
         failures.append(f"answer {result.answer!r} lacks {case.answer_contains!r}")
+    for bad in case.answer_excludes:
+        if bad.lower() in result.answer.lower():
+            failures.append(f"answer contains forbidden text {bad!r}")
     for t in case.must_call:
         if t not in called:
             failures.append(f"expected call to {t!r}")
