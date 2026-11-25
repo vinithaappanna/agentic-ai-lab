@@ -28,6 +28,7 @@ class Case:
     max_steps: int | None = None             # fail when the run takes more steps than this
     max_tool_calls: dict[str, int] = field(default_factory=dict)   # per-tool cap on executed (unblocked) calls
     must_call_with: dict[str, dict] = field(default_factory=dict)   # tool -> arguments some executed call must include
+    must_not_call_with: dict[str, dict] = field(default_factory=dict)   # tool -> arguments no executed call may include (all of them together)
     stopped_reason: str | None = None
 
 
@@ -70,6 +71,12 @@ def run_case(make_agent: Callable, case: Case) -> CaseResult:
                 and isinstance(s.action_input, dict)]
         if not any(all(k in r and r[k] == v for k, v in want.items()) for r in runs):
             failures.append(f"no executed call to {tool!r} with arguments {want}")
+    for tool, bad in case.must_not_call_with.items():
+        for s in result.steps:
+            if (s.action == tool and not s.blocked and isinstance(s.action_input, dict)
+                    and all(k in s.action_input and s.action_input[k] == v for k, v in bad.items())):
+                failures.append(f"call to {tool!r} with forbidden arguments {bad}")
+                break
     for tool, cap in case.max_tool_calls.items():
         n = called.count(tool)
         if n > cap:

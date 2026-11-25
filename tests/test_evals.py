@@ -133,3 +133,13 @@ def test_must_call_with_matches_argument_subset_on_executed_calls_only():
     res = run_case(make_agent, Case("c", "x", script, must_call_with={"balance": {"acct": "A"}}))
     assert not res.passed
     assert run_case(make_agent, Case("d", "x", script, must_call_with={"refund": {}})).passed   # any executed call
+
+
+def test_must_not_call_with_flags_executed_calls_only():
+    script = [call("refund", amount=50), call("refund", amount=9000), FINAL]
+    res = run_case(make_agent, Case("a", "x", script, must_not_call_with={"refund": {"amount": 50}}))
+    assert not res.passed and "forbidden arguments" in res.failures[0]
+    # the 9000 refund was blocked by policy, so it never executed and does not trip the check
+    assert run_case(make_agent, Case("b", "x", script, must_not_call_with={"refund": {"amount": 9000}})).passed
+    assert run_case(make_agent, Case("c", "x", script, must_not_call_with={"balance": {}})).passed
+    assert not run_case(make_agent, Case("d", "x", script, must_not_call_with={"refund": {}})).passed   # empty = any executed call
