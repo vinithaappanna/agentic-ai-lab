@@ -123,3 +123,13 @@ def test_answer_excludes_catches_leaks_case_insensitively():
     assert not any("'ssn'" in f for f in res.failures)
     ok = Case("clean answer", "x", [FINAL], answer_excludes=("mbr-0042",))
     assert run_case(make_agent, ok).passed
+
+
+def test_must_call_with_matches_argument_subset_on_executed_calls_only():
+    script = [call("refund", amount=50), call("refund", amount=9000), FINAL]
+    assert run_case(make_agent, Case("a", "x", script, must_call_with={"refund": {"amount": 50}})).passed
+    res = run_case(make_agent, Case("b", "x", script, must_call_with={"refund": {"amount": 9000}}))
+    assert not res.passed and "amount" in res.failures[0]          # 9000 was blocked, so it did not execute
+    res = run_case(make_agent, Case("c", "x", script, must_call_with={"balance": {"acct": "A"}}))
+    assert not res.passed
+    assert run_case(make_agent, Case("d", "x", script, must_call_with={"refund": {}})).passed   # any executed call

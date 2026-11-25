@@ -27,6 +27,7 @@ class Case:
     call_order: tuple[str, ...] = ()       # these tools must run in this relative order
     max_steps: int | None = None             # fail when the run takes more steps than this
     max_tool_calls: dict[str, int] = field(default_factory=dict)   # per-tool cap on executed (unblocked) calls
+    must_call_with: dict[str, dict] = field(default_factory=dict)   # tool -> arguments some executed call must include
     stopped_reason: str | None = None
 
 
@@ -64,6 +65,11 @@ def run_case(make_agent: Callable, case: Case) -> CaseResult:
             failures.append(f"{t!r} ran despite must_block")
     if case.max_steps is not None and len(result.steps) > case.max_steps:
         failures.append(f"run took {len(result.steps)} steps, over the limit of {case.max_steps}")
+    for tool, want in case.must_call_with.items():
+        runs = [s.action_input for s in result.steps if s.action == tool and not s.blocked
+                and isinstance(s.action_input, dict)]
+        if not any(all(k in r and r[k] == v for k, v in want.items()) for r in runs):
+            failures.append(f"no executed call to {tool!r} with arguments {want}")
     for tool, cap in case.max_tool_calls.items():
         n = called.count(tool)
         if n > cap:
