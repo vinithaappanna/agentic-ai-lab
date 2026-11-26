@@ -86,4 +86,18 @@ def test_audit_summary_round_trips_a_run_and_tolerates_bad_lines():
     noisy = audit_summary("not json\n\n" + text)
     assert noisy["malformed_lines"] == 1 and noisy["steps"] == 2
     assert audit_summary("") == {"steps": 0, "blocked": 0, "actions": {}, "blocked_actions": {},
-                                 "stopped_reason": None, "malformed_lines": 0}
+                                 "errors": 0, "error_actions": {}, "stopped_reason": None, "malformed_lines": 0}
+
+
+def test_audit_summary_counts_error_observations_but_not_blocked_steps():
+    import json as _json
+    from agentlab.trace import audit_summary
+    rows = [{"type": "step", "action": "lookup", "observation": "error: bad id", "blocked": False},
+            {"type": "step", "action": "lookup", "observation": "ok", "blocked": False},
+            {"type": "step", "action": "refund", "observation": "error: blocked by approval", "blocked": True},
+            {"type": "step", "action": "refund", "observation": None, "blocked": False},
+            {"type": "summary", "stopped_reason": "final"}]
+    out = audit_summary("\n".join(_json.dumps(r) for r in rows))
+    assert out["steps"] == 4 and out["blocked"] == 1
+    assert out["errors"] == 1 and out["error_actions"] == {"lookup": 1}      # blocked step is not double counted
+    assert out["stopped_reason"] == "final"
