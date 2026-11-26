@@ -209,3 +209,21 @@ def forbid_pattern(field: str, pattern: str, tools: tuple[str, ...] | None = Non
         value = args[field]
         return isinstance(value, str) and rx.search(value) is None
     return rule
+
+
+def one_of(field: str, allowed: tuple, tools: tuple[str, ...] | None = None) -> Rule:
+    """Allow calls whose `field` equals one of the `allowed` values, e.g. only
+    approved claim actions: one_of("action", ("review", "escalate")). Applies to
+    the named tools only (others pass). A missing field is denied. Strings
+    compare exactly (case-sensitive) and an unhashable value is denied, so a
+    list or dict cannot slip through. Illustrative guardrail."""
+    options = tuple(allowed)
+
+    def rule(name: str, args: dict) -> bool:
+        if tools is not None and name not in tools:
+            return True
+        if field not in args:
+            return False
+        value = args[field]
+        return any(type(value) is type(o) and value == o for o in options)
+    return rule

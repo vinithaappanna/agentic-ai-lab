@@ -160,3 +160,16 @@ def test_forbid_pattern_scope_missing_and_non_string():
     assert r("flag", {}) and r("other", {"note": "123-45-6789"})   # missing field / out of scope pass
     assert not r("flag", {"note": 123456789})                     # cannot check: deny
     assert not all_of(allow_tools("flag"), r)("flag", {"note": "123-45-6789"})
+
+
+def test_one_of_exact_match_scope_missing_and_types():
+    from agentlab.policy import all_of, one_of
+    r = one_of("action", ("review", "escalate"), tools=("triage",))
+    assert r("triage", {"action": "review"}) is True
+    assert r("triage", {"action": "Review"}) is False        # exact, case-sensitive
+    assert r("triage", {}) is False                          # missing: deny
+    assert r("triage", {"action": ["review"]}) is False      # unhashable/list cannot match
+    assert r("other", {"action": "delete"}) is True          # out of scope
+    n = one_of("level", (1, 2))
+    assert n("x", {"level": 1}) is True and n("x", {"level": True}) is False   # bool is not 1
+    assert all_of(r, max_amount("amount", 5, tools=("triage",)))("triage", {"action": "escalate", "amount": 3}) is True
