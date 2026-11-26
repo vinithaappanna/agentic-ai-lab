@@ -63,3 +63,21 @@ def redact_value(value, extra: dict[str, str] | None = None):
     if isinstance(value, list):
         return [redact_value(v, extra) for v in value]
     return value
+
+
+def redaction_counts(text: str, extra: dict[str, str] | None = None) -> dict[str, int]:
+    """How many matches each label would redact in `text` (cards as CARD),
+    without changing it. For audit summaries that report what was masked, not
+    the masked values. Labels with no matches are omitted; order is by label.
+    Matches are counted against the text as scanned: cards first, then the
+    other patterns on the card-masked text, same as redact_text."""
+    counts: dict[str, int] = {}
+    scanned = _mask_cards(text)
+    cards = len(re.findall(r"\[CARD\]", scanned)) - len(re.findall(r"\[CARD\]", text))
+    if cards:
+        counts["CARD"] = cards
+    for label, pattern in {**DEFAULT_PATTERNS, **(extra or {})}.items():
+        n = len(re.findall(pattern, scanned))
+        if n:
+            counts[label] = counts.get(label, 0) + n
+    return dict(sorted(counts.items()))

@@ -79,3 +79,14 @@ def test_masks_luhn_valid_cards_only():
     assert "4111111111111112" in out and "1234567" in out        # fails Luhn / too short: kept
     assert redact_text("claim 12345 paid 1500.25 code 99213") == "claim 12345 paid 1500.25 code 99213"
     assert redact_text("SSN 123-45-6789") == "SSN [SSN]"
+
+
+def test_redaction_counts_labels_without_changing_text_and_matches_redact_text():
+    from agentlab.redact import redaction_counts, HEALTH_PATTERNS
+    text = "SSN 123-45-6789 and 987-65-4321, mail a@b.co, card 4111 1111 1111 1111, member MBR-0042"
+    assert redaction_counts(text) == {"CARD": 1, "EMAIL": 1, "SSN": 2}
+    assert redaction_counts(text, HEALTH_PATTERNS) == {"CARD": 1, "EMAIL": 1, "MEMBER_ID": 1, "SSN": 2}
+    assert redaction_counts("nothing sensitive here, order 1234567890123") == {}
+    out = redact_text(text, HEALTH_PATTERNS)
+    assert "[SSN]" in out and out.count("[SSN]") == 2 and "[CARD]" in out and "[MEMBER_ID]" in out
+    assert redaction_counts("") == {}

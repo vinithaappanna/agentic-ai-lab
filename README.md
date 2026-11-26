@@ -119,6 +119,7 @@ back for a reviewer: step count, blocked steps, actions run and blocked, stop re
 
 Pass `redact=True` to mask SSNs, emails, phone numbers and Luhn-valid card numbers (`agentlab.redact`,
 pattern-based safety net, not a compliance guarantee; use synthetic data only).
+`redaction_counts(text)` reports how many matches each label would mask (labels and counts only, never the values).
 Opt-in `HEALTH_PATTERNS` (member id, MRN, date of birth; illustrative formats) go
 in through `extra=`.
 
