@@ -143,3 +143,12 @@ def test_must_not_call_with_flags_executed_calls_only():
     assert run_case(make_agent, Case("b", "x", script, must_not_call_with={"refund": {"amount": 9000}})).passed
     assert run_case(make_agent, Case("c", "x", script, must_not_call_with={"balance": {}})).passed
     assert not run_case(make_agent, Case("d", "x", script, must_not_call_with={"refund": {}})).passed   # empty = any executed call
+
+
+def test_answer_matches_regex_case_insensitive_and_bad_pattern():
+    ok = Case("a", "x", [FINAL], answer_matches=r"\w+")
+    assert run_case(make_agent, ok).passed
+    res = run_case(make_agent, Case("b", "x", [FINAL], answer_matches=r"^CLM-\d{5}$"))
+    assert not res.passed and "does not match" in res.failures[0]
+    res = run_case(make_agent, Case("c", "x", [FINAL], answer_matches="("))
+    assert not res.passed and "invalid answer_matches" in res.failures[0]

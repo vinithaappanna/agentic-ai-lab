@@ -29,6 +29,7 @@ class Case:
     max_tool_calls: dict[str, int] = field(default_factory=dict)   # per-tool cap on executed (unblocked) calls
     must_call_with: dict[str, dict] = field(default_factory=dict)   # tool -> arguments some executed call must include
     must_not_call_with: dict[str, dict] = field(default_factory=dict)   # tool -> arguments no executed call may include (all of them together)
+    answer_matches: str | None = None        # regex the final answer must match (case-insensitive), e.g. a claim id format
     stopped_reason: str | None = None
 
 
@@ -50,6 +51,13 @@ def run_case(make_agent: Callable, case: Case) -> CaseResult:
     blocked = [s.action for s in result.steps if s.blocked]
     if case.answer_contains is not None and case.answer_contains.lower() not in result.answer.lower():
         failures.append(f"answer {result.answer!r} lacks {case.answer_contains!r}")
+    if case.answer_matches is not None:
+        import re
+        try:
+            if not re.search(case.answer_matches, result.answer or "", re.IGNORECASE):
+                failures.append(f"answer {result.answer!r} does not match /{case.answer_matches}/")
+        except re.error as exc:
+            failures.append(f"invalid answer_matches pattern: {exc}")
     for bad in case.answer_excludes:
         if bad.lower() in result.answer.lower():
             failures.append(f"answer contains forbidden text {bad!r}")
