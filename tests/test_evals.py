@@ -152,3 +152,11 @@ def test_answer_matches_regex_case_insensitive_and_bad_pattern():
     assert not res.passed and "does not match" in res.failures[0]
     res = run_case(make_agent, Case("c", "x", [FINAL], answer_matches="("))
     assert not res.passed and "invalid answer_matches" in res.failures[0]
+
+
+def test_max_blocked_counts_blocked_calls_only():
+    script = [call("refund", amount=50), call("refund", amount=9000), FINAL]    # 9000 is blocked by policy
+    assert run_case(make_agent, Case("a", "x", script, max_blocked=1)).passed
+    res = run_case(make_agent, Case("b", "x", script, max_blocked=0))
+    assert not res.passed and "blocked" in res.failures[0]
+    assert run_case(make_agent, Case("c", "x", [call("refund", amount=5), FINAL], max_blocked=0)).passed

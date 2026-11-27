@@ -30,6 +30,7 @@ class Case:
     must_call_with: dict[str, dict] = field(default_factory=dict)   # tool -> arguments some executed call must include
     must_not_call_with: dict[str, dict] = field(default_factory=dict)   # tool -> arguments no executed call may include (all of them together)
     answer_matches: str | None = None        # regex the final answer must match (case-insensitive), e.g. a claim id format
+    max_blocked: int | None = None           # fail when more than this many calls were blocked (e.g. 0 for a clean run)
     stopped_reason: str | None = None
 
 
@@ -74,6 +75,8 @@ def run_case(make_agent: Callable, case: Case) -> CaseResult:
             failures.append(f"{t!r} ran despite must_block")
     if case.max_steps is not None and len(result.steps) > case.max_steps:
         failures.append(f"run took {len(result.steps)} steps, over the limit of {case.max_steps}")
+    if case.max_blocked is not None and len(blocked) > case.max_blocked:
+        failures.append(f"{len(blocked)} calls were blocked, over the limit of {case.max_blocked}")
     for tool, want in case.must_call_with.items():
         runs = [s.action_input for s in result.steps if s.action == tool and not s.blocked
                 and isinstance(s.action_input, dict)]
