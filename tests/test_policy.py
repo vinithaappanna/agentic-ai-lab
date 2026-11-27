@@ -173,3 +173,15 @@ def test_one_of_exact_match_scope_missing_and_types():
     n = one_of("level", (1, 2))
     assert n("x", {"level": 1}) is True and n("x", {"level": True}) is False   # bool is not 1
     assert all_of(r, max_amount("amount", 5, tools=("triage",)))("triage", {"action": "escalate", "amount": 3}) is True
+
+
+def test_none_of_denies_listed_values_exactly_and_scopes():
+    from agentlab.policy import none_of
+    r = none_of("action", ("delete", "close"), tools=("admin",))
+    assert r("admin", {"action": "review"}) is True
+    assert r("admin", {"action": "delete"}) is False
+    assert r("admin", {"action": "Delete"}) is True          # exact, case-sensitive
+    assert r("admin", {}) is True                            # missing passes
+    assert r("other", {"action": "delete"}) is True          # out of scope
+    n = none_of("level", (1,))
+    assert n("x", {"level": 1}) is False and n("x", {"level": True}) is True   # bool is not 1

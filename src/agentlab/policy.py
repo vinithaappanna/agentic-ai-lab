@@ -227,3 +227,22 @@ def one_of(field: str, allowed: tuple, tools: tuple[str, ...] | None = None) -> 
         value = args[field]
         return any(type(value) is type(o) and value == o for o in options)
     return rule
+
+
+def none_of(field: str, denied: tuple, tools: tuple[str, ...] | None = None) -> Rule:
+    """Deny calls whose `field` equals any of the `denied` values (exact,
+    type-aware match), e.g. none_of("action", ("delete", "close_account")).
+    Applies to the named tools only (others pass). A missing field passes (use
+    require_fields to demand it). An unhashable value such as a list cannot
+    equal a listed scalar and passes, so pair with one_of for an allowlist.
+    Illustrative guardrail."""
+    blocked = tuple(denied)
+
+    def rule(name: str, args: dict) -> bool:
+        if tools is not None and name not in tools:
+            return True
+        if field not in args:
+            return True
+        value = args[field]
+        return not any(type(value) is type(b) and value == b for b in blocked)
+    return rule
